@@ -1,0 +1,7 @@
+Singularity Mod is a Mod oriented to adding general content which includes:
+
+Bosses, Weapons, Items, Biomes and Mechanics.
+
+Currently Singularity Mod Is on Alpha Barebones.
+
+- InterPolar, aka Kernels
