@@ -1,1 +1,6 @@
-
+Items: {
+	ChangesiteOre: {
+		DisplayName: Changesite Ore
+		Tooltip: ""
+	}
+}
