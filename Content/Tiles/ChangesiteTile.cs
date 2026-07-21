@@ -2,12 +2,13 @@ using Terraria;
 using Terraria.ModLoader;
 using Microsoft.Xna.Framework;
 using Terraria.ID;
+using Terraria.ObjectData;
 
-namespace SingularityMod.Tiles
+namespace SingularityMod.Content.Tiles
 {
     public class ChangesiteTile : ModTile
     {
-        public override string Texture => "SingularityMod/Assets/Tiles/ChangesiteTile";
+        public override string Texture => "SingularityMod/Content/Assets/Tiles/ChangesiteTile";
         
         public override void SetStaticDefaults()
         {
@@ -18,7 +19,7 @@ namespace SingularityMod.Tiles
 
             DustType = DustID.Silver;
 
-            MineResist = 1.5f;
+            MineResist = 3.0f;
             MinPick = 55; // Gold / Platinum pickaxe
         }
     }

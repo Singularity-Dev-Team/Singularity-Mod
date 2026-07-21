@@ -49,7 +49,7 @@ namespace SingularityMod.Singularity
                     y,
                     WorldGen.genRand.Next(3, 6), // Thickness
                     WorldGen.genRand.Next(3, 6), // Length
-                    ModContent.TileType<Tiles.ChangesiteTile>()
+                    ModContent.TileType<Content.Tiles.ChangesiteTile>()
                 );
             }
         }

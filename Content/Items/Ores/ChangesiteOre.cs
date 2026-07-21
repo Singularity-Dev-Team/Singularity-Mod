@@ -1,13 +1,13 @@
 using Terraria;
 using Terraria.ID;
 using Terraria.ModLoader;
-using SingularityMod.Tiles;
+using SingularityMod.Content.Tiles;
 
-namespace SingularityMod.Items.Ores
+namespace SingularityMod.Content.Items.Ores
 {
     public class ChangesiteOre : ModItem
     {
-        public override string Texture => "SingularityMod/Assets/Items/Ores/ChangesiteOre";
+        public override string Texture => "SingularityMod/Content/Assets/Items/Ores/ChangesiteOre";
         
         public override void SetDefaults()
         {

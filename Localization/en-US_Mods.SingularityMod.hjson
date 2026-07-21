@@ -3,4 +3,27 @@ Items: {
 		DisplayName: Changesite Ore
 		Tooltip: ""
 	}
+
+	ChangesiteAnvil: {
+		DisplayName: Changesite Anvil
+		Tooltip: Used to craft otherwordly items
+	}
+
+	ChangesiteBar: {
+		DisplayName: Changesite Bar
+		Tooltip: ""
+	}
+
+	Magnetron: {
+		DisplayName: Magnetron
+		Tooltip: Able to mine otherwordly ores
+	}
 }
+
+NPCs: {
+	CygnusBody.DisplayName: Cygnus Body
+	CygnusHead.DisplayName: Cygnus Head
+	CygnusTail.DisplayName: Cygnus Tail
+}
+
+Projectiles.MagnetronBeam.DisplayName: Magnetron Beam
