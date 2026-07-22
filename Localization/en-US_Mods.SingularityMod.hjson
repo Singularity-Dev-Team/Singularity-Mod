@@ -18,12 +18,21 @@ Items: {
 		DisplayName: Magnetron
 		Tooltip: Able to mine otherwordly ores
 	}
+
+	OrbitalBeacon: {
+		DisplayName: Orbital Beacon
+		Tooltip: ""
+	}
 }
 
 NPCs: {
-	CygnusBody.DisplayName: Cygnus Body
-	CygnusHead.DisplayName: Cygnus Head
-	CygnusTail.DisplayName: Cygnus Tail
+	CygnusBody.DisplayName: Cygnus
+	CygnusHead.DisplayName: Cygnus
+	CygnusTail.DisplayName: Cygnus
 }
 
-Projectiles.MagnetronBeam.DisplayName: Magnetron Beam
+Projectiles: {
+	MagnetronBeam.DisplayName: Magnetron Beam
+	ChangesiteBeam.DisplayName: Changesite Beam
+	ChangesiteHoming.DisplayName: Changesite Homing
+}

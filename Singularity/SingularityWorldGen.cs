@@ -47,7 +47,7 @@ namespace SingularityMod.Singularity
                 WorldGen.TileRunner(
                     x,
                     y,
-                    WorldGen.genRand.Next(3, 6), // Thickness
+                    WorldGen.genRand.Next(5, 8), // Thickness
                     WorldGen.genRand.Next(3, 6), // Length
                     ModContent.TileType<Content.Tiles.ChangesiteTile>()
                 );

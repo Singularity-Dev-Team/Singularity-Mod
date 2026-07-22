@@ -1,6 +1,7 @@
 using System;
 using Microsoft.Xna.Framework;
 using Microsoft.Xna.Framework.Graphics;
+using SingularityMod.Content.Projectiles;
 using Terraria;
 using Terraria.DataStructures;
 using Terraria.ID;
@@ -90,7 +91,7 @@ namespace SingularityMod.Content.NPCs.Bosses.Cygnus
 
         public override bool? CanBeHitByProjectile(Projectile projectile)
         {
-            if (projectile.type == CygnusHead.hoverProjectile)
+            if (projectile.type == ModContent.ProjectileType<ChangesiteBeam>())
             {
                 return false;
             }

@@ -2,6 +2,7 @@ using System;
 using Humanizer;
 using Microsoft.Xna.Framework;
 using Microsoft.Xna.Framework.Graphics;
+using SingularityMod.Content.Projectiles;
 using SingularityMod.Singularity;
 using Terraria;
 using Terraria.Audio;
@@ -18,8 +19,6 @@ namespace SingularityMod.Content.NPCs.Bosses.Cygnus
         public override string BossHeadTexture => "SingularityMod/Content/Assets/NPCs/Cygnus/Cygnus_Head";
         public override string Texture => "SingularityMod/Content/Assets/NPCs/Cygnus/CygnusHead";
         public static int CygnusLength = 30;
-
-        public const short hoverProjectile = ProjectileID.EyeBeam;
 
         int RushIntentTick = 0;
         int HoverIntentTick = 0;
@@ -63,7 +62,7 @@ namespace SingularityMod.Content.NPCs.Bosses.Cygnus
 
         public override bool? CanBeHitByProjectile(Projectile projectile)
         {
-            if (projectile.type == CygnusHead.hoverProjectile)
+            if (projectile.type == ModContent.ProjectileType<ChangesiteBeam>())
             {
                 return false;
             }
@@ -149,6 +148,8 @@ namespace SingularityMod.Content.NPCs.Bosses.Cygnus
         {
             // 60 ticks = 1 sec
 
+            //Main.NewText($"Hovering: {Hovering}, Charging: {ChargingRush}, Rushing: {Rushing}"); // Debug
+
             Player target = Main.player[NPC.target];
             float healthRatioLower = (float)NPC.life / NPC.lifeMax;
             float healthRatioHigher = (float)NPC.lifeMax / NPC.life;
@@ -169,9 +170,10 @@ namespace SingularityMod.Content.NPCs.Bosses.Cygnus
                 Vector2 direction = target.Center - NPC.Center;
                 direction.Normalize();
                 NPC.rotation += MathHelper.WrapAngle(direction.ToRotation() + MathHelper.PiOver2 - NPC.rotation) * 0.15f; // Interpolate
-                NPC.velocity = Vector2.Lerp(NPC.velocity,direction * 4f * Math.Clamp(healthRatioHigher, 1.0f, 1.5f), 0.08f);
+                NPC.velocity = Vector2.Lerp(NPC.velocity, direction * 4f * Math.Clamp(healthRatioHigher, 1.0f, 1.5f), 0.08f);
 
-                if (RushIntentTick >= 450 * Math.Clamp(healthRatioLower, 0.5, 1) && RushIntentTick <= 500 * Math.Clamp(healthRatioLower, 0.5, 1) && !Hovering ){
+                if (RushIntentTick >= 450 * Math.Clamp(healthRatioLower, 0.5, 1) && RushIntentTick <= 500 * Math.Clamp(healthRatioLower, 0.5, 1) && !Hovering)
+                {
                     // decelerate
                     NPC.velocity = Vector2.Lerp(NPC.velocity, Vector2.Zero, 0.08f);
                 }
@@ -189,8 +191,8 @@ namespace SingularityMod.Content.NPCs.Bosses.Cygnus
                     NPC.rotation += MathHelper.WrapAngle(direction.ToRotation() + MathHelper.PiOver2 - NPC.rotation) * 0.15f; // Interpolate
                     HoverIntentTick = 0;
                     HoverPos = new Vector2(0, -300);
-                    HoverX = new Random().Next(-5,6);
-                    HoverY = new Random().Next(-2,3);
+                    HoverX = new Random().Next(-5, 6);
+                    HoverY = new Random().Next(-2, 3);
                 }
                 RushIntentTick++;
                 HoverIntentTick++;
@@ -209,23 +211,33 @@ namespace SingularityMod.Content.NPCs.Bosses.Cygnus
                 }
                 if (HoverTicks % 30 == 0)
                 {
+                    int R = new Random().Next(0, 2);
+                    SoundEngine.PlaySound(SoundID.Item33, NPC.position);
                     Vector2 dir = target.Center - NPC.Center;
                     dir.Normalize();
-                    Projectile.NewProjectile(
+                    int Proj = Projectile.NewProjectile(
                     NPC.GetSource_FromAI(),              // The spawn source context
                     NPC.Center,                          // Where it spawns (NPC center)
                     dir * 10,                            // The direction and speed
-                    hoverProjectile,     // The projectile type
+                    ModContent.ProjectileType<ChangesiteBeam>(),     // The projectile type
                     25,                                  // Damage dealt to the player
                     1f,                                  // Knockback force
                     Main.myPlayer                        // The owner index
                     );
+                    if (Main.projectile[Proj].ModProjectile is ChangesiteBeam proj)
+                    {
+                        if (R == 1)
+                        {
+                            proj.Homes = true;
+                        }
+                        Main.projectile[Proj].scale += Main.rand.NextFloat(0f, 0.5f);
+                    }
                 }
                 Vector2 hoverTarget = target.Center + HoverPos;
                 Vector2 direction = hoverTarget - NPC.Center;
                 direction.Normalize();
-                NPC.rotation += MathHelper.WrapAngle(direction.ToRotation() + MathHelper.PiOver2 - NPC.rotation) * 0.15f; // Interpolate
                 NPC.velocity = Vector2.Lerp(NPC.velocity, direction * 10, 0.1f);
+                NPC.rotation += MathHelper.WrapAngle(NPC.velocity.ToRotation() + MathHelper.PiOver2 - NPC.rotation) * 0.15f; // Interpolate
                 HoverTicks++;
                 HoverPos -= new Vector2(HoverX, HoverY);
             }
@@ -255,7 +267,7 @@ namespace SingularityMod.Content.NPCs.Bosses.Cygnus
                 direction.Normalize();
                 if (distance >= 10)
                 {
-                    NPC.velocity = Vector2.Lerp(NPC.velocity, direction * 10f * Math.Clamp(healthRatioHigher,1f,2f),0.08f);
+                    NPC.velocity = Vector2.Lerp(NPC.velocity, direction * 10f * Math.Clamp(healthRatioHigher, 1f, 2f), 0.08f);
                     NPC.rotation += MathHelper.WrapAngle(direction.ToRotation() + MathHelper.PiOver2 - NPC.rotation) * 0.15f; // Interpolate
                 }
                 else
