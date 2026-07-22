@@ -23,6 +23,16 @@ Items: {
 		DisplayName: Orbital Beacon
 		Tooltip: ""
 	}
+
+	CygnusBag: {
+		DisplayName: Cygnus Bag
+		Tooltip: ""
+	}
+
+	CygnusRelic: {
+		DisplayName: Cygnus Relic
+		Tooltip: ""
+	}
 }
 
 NPCs: {

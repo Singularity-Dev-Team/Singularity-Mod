@@ -1,12 +1,16 @@
 using System;
+using System.IO;
 using Humanizer;
 using Microsoft.Xna.Framework;
 using Microsoft.Xna.Framework.Graphics;
+using SingularityMod.Content.Items.BossBags;
+using SingularityMod.Content.Items.Relics;
 using SingularityMod.Content.Projectiles;
 using SingularityMod.Singularity;
 using Terraria;
 using Terraria.Audio;
 using Terraria.DataStructures;
+using Terraria.GameContent.ItemDropRules;
 using Terraria.ID;
 using Terraria.ModLoader;
 
@@ -19,6 +23,10 @@ namespace SingularityMod.Content.NPCs.Bosses.Cygnus
         public override string BossHeadTexture => "SingularityMod/Content/Assets/NPCs/Cygnus/Cygnus_Head";
         public override string Texture => "SingularityMod/Content/Assets/NPCs/Cygnus/CygnusHead";
         public static int CygnusLength = 30;
+        private static int MaxPlayerDistance = 1500;
+        public int CygnusID = 0; // This prevents messing up cygnus with two of them
+        private static int NextCygnusID = 0; // So they all share this but not CygnusID
+        // I know i could use a single counter but i use 2 because i want to and its easier to debug - Kernels
 
         int RushIntentTick = 0;
         int HoverIntentTick = 0;
@@ -58,6 +66,72 @@ namespace SingularityMod.Content.NPCs.Bosses.Cygnus
             NPC.DeathSound = SoundID.Item119; // Temporal
 
             NPC.value = 10000;
+        }
+
+        public override void SendExtraAI(BinaryWriter writer)
+        {
+
+            // Sync send
+            writer.Write(ChargingRush);
+            writer.Write(Rushing);
+            writer.Write(Hovering);
+
+            writer.Write(RushIntentTick);
+            writer.Write(HoverIntentTick);
+
+            writer.Write(ChargingRushTick);
+            writer.Write(RushingTick);
+            writer.Write(HoverTicks);
+
+            writer.Write(HoverX);
+            writer.Write(HoverY);
+
+            writer.Write(RushDirection.X);
+            writer.Write(RushDirection.Y);
+
+            writer.Write(HoverPos.X);
+            writer.Write(HoverPos.Y);
+        }
+
+        public override void ReceiveExtraAI(BinaryReader reader)
+        {
+            // Sync recieve
+            ChargingRush = reader.ReadBoolean();
+            Rushing = reader.ReadBoolean();
+            Hovering = reader.ReadBoolean();
+
+            RushIntentTick = reader.ReadInt32();
+            HoverIntentTick = reader.ReadInt32();
+
+            ChargingRushTick = reader.ReadInt32();
+            RushingTick = reader.ReadInt32();
+            HoverTicks = reader.ReadInt32();
+
+            HoverX = reader.ReadInt32();
+            HoverY = reader.ReadInt32();
+
+            RushDirection = new Vector2(
+                reader.ReadSingle(),
+                reader.ReadSingle()
+            );
+
+            HoverPos = new Vector2(
+                reader.ReadSingle(),
+                reader.ReadSingle()
+            );
+        }
+
+        public override void ModifyNPCLoot(NPCLoot npcLoot)
+        {
+            // drops
+            if (Main.expertMode || Main.masterMode)
+            {
+                if (!Main.expertMode)
+                {
+                    npcLoot.Add(ItemDropRule.Common(ModContent.ItemType<CygnusRelic>(), 1));
+                }
+                npcLoot.Add(ItemDropRule.Common(ModContent.ItemType<CygnusBag>(), 1));
+            }
         }
 
         public override bool? CanBeHitByProjectile(Projectile projectile)
@@ -121,6 +195,7 @@ namespace SingularityMod.Content.NPCs.Bosses.Cygnus
 
         public override void OnSpawn(IEntitySource source)
         {
+            CygnusID = NextCygnusID++;
             int previous = NPC.whoAmI;
 
             for (int i = 0; i < CygnusLength; i++)
@@ -136,6 +211,14 @@ namespace SingularityMod.Content.NPCs.Bosses.Cygnus
                     (int)NPC.Center.Y,
                     type
                 );
+
+                CygnusSegment segmentMod = Main.npc[segment].ModNPC as CygnusSegment;
+
+                if (segmentMod != null)
+                {
+                    segmentMod.CygnusID = CygnusID;
+                }
+
                 Main.npc[segment].ai[2] = NPC.whoAmI;
                 Main.npc[segment].ai[1] = previous;
                 Main.npc[previous].ai[0] = segment;
@@ -154,19 +237,36 @@ namespace SingularityMod.Content.NPCs.Bosses.Cygnus
             float healthRatioLower = (float)NPC.life / NPC.lifeMax;
             float healthRatioHigher = (float)NPC.lifeMax / NPC.life;
 
+            bool allPlayersDead = true;
+
+            Vector2 toPlayer = target.Center - NPC.Center;
+            float playerDistance = toPlayer.Length();
+
+            for (int i = 0; i < Main.maxPlayers; i++)
+            {
+                Player player = Main.player[i];
+
+                if (player.active && !player.dead)
+                {
+                    allPlayersDead = false;
+                    break;
+                }
+            }
+
+            if (!target.active || target.dead || playerDistance >= MaxPlayerDistance)
+            {
+                NPC.TargetClosest();
+                target = Main.player[NPC.target];
+            }
+
+            if (allPlayersDead)
+            {
+                NPC.timeLeft = 0;
+                NPC.active = false;
+            }
 
             if (!Rushing && !ChargingRush && !Hovering)
             {
-                if (!target.active || target.dead)
-                {
-                    NPC.TargetClosest();
-                    target = Main.player[NPC.target];
-                }
-                else
-                {
-                    NPC.timeLeft = 0;
-                }
-
                 Vector2 direction = target.Center - NPC.Center;
                 direction.Normalize();
                 NPC.rotation += MathHelper.WrapAngle(direction.ToRotation() + MathHelper.PiOver2 - NPC.rotation) * 0.15f; // Interpolate
@@ -194,9 +294,11 @@ namespace SingularityMod.Content.NPCs.Bosses.Cygnus
                     HoverX = new Random().Next(-5, 6);
                     HoverY = new Random().Next(-2, 3);
                 }
+
+                if (playerDistance <= MaxPlayerDistance){
                 RushIntentTick++;
                 HoverIntentTick++;
-                NPC.netUpdate = true;
+                }
                 return;
             }
 
@@ -279,7 +381,6 @@ namespace SingularityMod.Content.NPCs.Bosses.Cygnus
                 RushingTick++;
             }
 
-            NPC.netUpdate = true;
         }
     }
 }

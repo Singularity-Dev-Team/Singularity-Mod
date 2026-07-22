@@ -11,9 +11,10 @@ namespace SingularityMod.Content.NPCs.Bosses.Cygnus
 
     // Tail
 
-    public class CygnusTail : ModNPC
+    public class CygnusTail : CygnusSegment
     {
         public override string Texture => "SingularityMod/Content/Assets/NPCs/Cygnus/CygnusTail";
+
         public override void SetDefaults()
         {
             NPC.width = 36;
@@ -92,62 +93,80 @@ namespace SingularityMod.Content.NPCs.Bosses.Cygnus
         {
             NPC head = Main.npc[(int)NPC.ai[2]];
 
-            if (head.active)
+            if (!head.active)
             {
-                head.life -= (int)(hit.Damage / 3); // by 3 since the tail is the strongest part
+                NPC.timeLeft = 0;
+                NPC.active = false;
+                return;
+            }
 
-                if (head.life <= 0)
-                {
-                    head.StrikeInstantKill();
-                    NPC.StrikeInstantKill();
-                    NPC.netUpdate = true;
-                    return;
-                }
+            CygnusHead headMod = head.ModNPC as CygnusHead;
+
+            if (headMod == null || headMod.CygnusID != CygnusID)
+            {
+                NPC.timeLeft = 0;
+                NPC.active = false;
+                return;
+            }
+            head.life -= (int)(hit.Damage / 2);
+            if (head.life <= 0)
+            {
+                NPC.timeLeft = 0;
+                NPC.active = false;
             }
 
             NPC.life = head.life;
-            NPC.netUpdate = true;
         }
 
         public override void AI()
         {
             if (NPC.life <= 0)
             {
+                NPC.timeLeft = 0;
                 NPC.StrikeInstantKill();
-                NPC.netUpdate = true;
                 return;
             }
             int previous = (int)NPC.ai[1];
+            NPC previousNPC = Main.npc[previous];
+            NPC headNPC = Main.npc[(int)NPC.ai[2]];
 
-            if (previous >= 0 && Main.npc[previous].active)
+            if (!headNPC.active)
             {
-                NPC prevNPC = Main.npc[previous];
-                if (prevNPC.life <= 0)
+                NPC.timeLeft = 0;
+                NPC.active = false;
+                return;
+            }
+
+            CygnusHead headMod = headNPC.ModNPC as CygnusHead;
+
+            if (headMod == null || headMod.CygnusID != CygnusID)
+            {
+                NPC.timeLeft = 0;
+                NPC.active = false;
+                return;
+            }
+
+            if (previous >= 0 && previousNPC.active && headNPC.active)
+            {
+                if (headNPC.life <= 0)
                 {
-                    NPC.StrikeInstantKill(); // Sync destruction
-                    NPC.netUpdate = true;
+                    NPC.timeLeft = 0;
+                    NPC.active = false;
                     return;
                 }
 
-                Vector2 direction = prevNPC.Center - NPC.Center;
+                Vector2 direction = previousNPC.Center - NPC.Center;
 
                 float distance = direction.Length();
 
                 if (distance > 40)
                 {
                     direction.Normalize();
-                    NPC.Center = prevNPC.Center - direction * 40f;
+                    NPC.Center = previousNPC.Center - direction * 40f;
                 }
 
                 NPC.rotation = direction.ToRotation() + MathHelper.PiOver2;
-                NPC.life = prevNPC.life;
-                NPC.netUpdate = true;
-            }
-            if (!Main.npc[previous].active)
-            {
-                NPC.StrikeInstantKill(); // Sync destruction
-                NPC.netUpdate = true;
-                return;
+                NPC.life = headNPC.life;
             }
         }
     }
