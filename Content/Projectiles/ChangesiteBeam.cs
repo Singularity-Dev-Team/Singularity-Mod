@@ -54,6 +54,10 @@ namespace SingularityMod.Content.Projectiles
                 dust.noGravity = true;
             }
         }
+        public override void OnHitPlayer(Player target, Player.HurtInfo info)
+        {
+            Projectile.Kill();
+        }
         public override void AI()
         {
             if (Homes)

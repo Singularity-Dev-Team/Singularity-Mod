@@ -1,6 +1,8 @@
 using System;
 using System.IO;
 using Humanizer;
+using Microsoft.CodeAnalysis;
+using Microsoft.CodeAnalysis.CSharp.Syntax;
 using Microsoft.Xna.Framework;
 using Microsoft.Xna.Framework.Graphics;
 using SingularityMod.Content.Items.BossBags;
@@ -10,6 +12,7 @@ using SingularityMod.Singularity;
 using Terraria;
 using Terraria.Audio;
 using Terraria.DataStructures;
+using Terraria.GameContent.Bestiary;
 using Terraria.GameContent.ItemDropRules;
 using Terraria.ID;
 using Terraria.ModLoader;
@@ -26,30 +29,37 @@ namespace SingularityMod.Content.NPCs.Bosses.Cygnus
         private static int MaxPlayerDistance = 1500;
         public int CygnusID = 0; // This prevents messing up cygnus with two of them
         private static int NextCygnusID = 0; // So they all share this but not CygnusID
-        // I know i could use a single counter but i use 2 because i want to and its easier to debug - Kernels
+        Vector2 idleTarget;
 
-        int RushIntentTick = 0;
-        int HoverIntentTick = 0;
-        bool ChargingRush = false;
-        int ChargingRushTick = 0;
-        bool Rushing = false;
-        int RushingTick = 0;
-        bool Hovering = false;
-        int HoverTicks = 0;
+        enum AttackState
+        {
+            Rush,
+            Hover,
+            None
+        }
+        AttackState CurrentState = AttackState.None;
+        int Counter = 0;
         int HoverX = 0;
         int HoverY = 0;
 
-        Vector2 prevPos;
+        Vector2 RushPosition;
+        Vector2 HoverPosition;
 
-        Vector2 RushDirection;
-        Vector2 HoverPos;
+        public override void SetBestiary(BestiaryDatabase database, BestiaryEntry bestiaryEntry)
+        {
+            bestiaryEntry.Info.AddRange(new IBestiaryInfoElement[]
+            {
+                BestiaryDatabaseNPCsPopulator.CommonTags.SpawnConditions.Biomes.Surface,
+                new FlavorTextBestiaryInfoElement("A mysterious celestial serpent from a distant constellation.")
+            });
+        }
 
         public override void SetDefaults()
         {
             NPC.width = 36;
             NPC.height = 36;
 
-            NPC.damage = 50;
+            NPC.damage = 80;
             NPC.defense = 15;
             NPC.lifeMax = 5000;
 
@@ -59,6 +69,8 @@ namespace SingularityMod.Content.NPCs.Bosses.Cygnus
             NPC.noGravity = true;
             NPC.noTileCollide = true;
             NPC.knockBackResist = 0f;
+            Music = MusicLoader.GetMusicSlot(Mod, "Content/Assets/Music/CygnusOST");
+
 
             NPC.friendly = false;
 
@@ -70,52 +82,41 @@ namespace SingularityMod.Content.NPCs.Bosses.Cygnus
 
         public override void SendExtraAI(BinaryWriter writer)
         {
-
-            // Sync send
-            writer.Write(ChargingRush);
-            writer.Write(Rushing);
-            writer.Write(Hovering);
-
-            writer.Write(RushIntentTick);
-            writer.Write(HoverIntentTick);
-
-            writer.Write(ChargingRushTick);
-            writer.Write(RushingTick);
-            writer.Write(HoverTicks);
+            writer.Write((byte)CurrentState);
+            writer.Write(Counter);
 
             writer.Write(HoverX);
             writer.Write(HoverY);
 
-            writer.Write(RushDirection.X);
-            writer.Write(RushDirection.Y);
+            writer.Write(RushPosition.X);
+            writer.Write(RushPosition.Y);
 
-            writer.Write(HoverPos.X);
-            writer.Write(HoverPos.Y);
+            writer.Write(HoverPosition.X);
+            writer.Write(HoverPosition.Y);
+
+            writer.Write(idleTarget.X);
+            writer.Write(idleTarget.Y);
         }
 
         public override void ReceiveExtraAI(BinaryReader reader)
         {
-            // Sync recieve
-            ChargingRush = reader.ReadBoolean();
-            Rushing = reader.ReadBoolean();
-            Hovering = reader.ReadBoolean();
-
-            RushIntentTick = reader.ReadInt32();
-            HoverIntentTick = reader.ReadInt32();
-
-            ChargingRushTick = reader.ReadInt32();
-            RushingTick = reader.ReadInt32();
-            HoverTicks = reader.ReadInt32();
+            CurrentState = (AttackState)reader.ReadByte();
+            Counter = reader.ReadInt32();
 
             HoverX = reader.ReadInt32();
             HoverY = reader.ReadInt32();
 
-            RushDirection = new Vector2(
+            RushPosition = new Vector2(
                 reader.ReadSingle(),
                 reader.ReadSingle()
             );
 
-            HoverPos = new Vector2(
+            HoverPosition = new Vector2(
+                reader.ReadSingle(),
+                reader.ReadSingle()
+            );
+
+            idleTarget = new Vector2(
                 reader.ReadSingle(),
                 reader.ReadSingle()
             );
@@ -227,20 +228,28 @@ namespace SingularityMod.Content.NPCs.Bosses.Cygnus
             }
         }
 
+        void PickNextAttack()
+        {
+            idleTarget = Vector2.Zero;
+            int r = Main.rand.Next(100);
+
+            if (r < 60)
+                CurrentState = AttackState.Rush;
+            else
+                CurrentState = AttackState.Hover;
+        }
+
         public override void AI()
         {
             // 60 ticks = 1 sec
 
-            //Main.NewText($"Hovering: {Hovering}, Charging: {ChargingRush}, Rushing: {Rushing}"); // Debug
-
             Player target = Main.player[NPC.target];
-            float healthRatioLower = (float)NPC.life / NPC.lifeMax;
-            float healthRatioHigher = (float)NPC.lifeMax / NPC.life;
+            float targetDistance = (target.Center - NPC.Center).Length();
+
+            float healthRatio = (float)NPC.lifeMax / NPC.life;
 
             bool allPlayersDead = true;
 
-            Vector2 toPlayer = target.Center - NPC.Center;
-            float playerDistance = toPlayer.Length();
 
             for (int i = 0; i < Main.maxPlayers; i++)
             {
@@ -253,7 +262,7 @@ namespace SingularityMod.Content.NPCs.Bosses.Cygnus
                 }
             }
 
-            if (!target.active || target.dead || playerDistance >= MaxPlayerDistance)
+            if (!target.active || target.dead || targetDistance >= MaxPlayerDistance)
             {
                 NPC.TargetClosest();
                 target = Main.player[NPC.target];
@@ -265,122 +274,147 @@ namespace SingularityMod.Content.NPCs.Bosses.Cygnus
                 NPC.active = false;
             }
 
-            if (!Rushing && !ChargingRush && !Hovering)
+            if (CurrentState == AttackState.None)
             {
-                Vector2 direction = target.Center - NPC.Center;
-                direction.Normalize();
-                NPC.rotation += MathHelper.WrapAngle(direction.ToRotation() + MathHelper.PiOver2 - NPC.rotation) * 0.15f; // Interpolate
-                NPC.velocity = Vector2.Lerp(NPC.velocity, direction * 4f * Math.Clamp(healthRatioHigher, 1.0f, 1.5f), 0.08f);
-
-                if (RushIntentTick >= 450 * Math.Clamp(healthRatioLower, 0.5, 1) && RushIntentTick <= 500 * Math.Clamp(healthRatioLower, 0.5, 1) && !Hovering)
+                if (targetDistance > 40f)
                 {
-                    // decelerate
-                    NPC.velocity = Vector2.Lerp(NPC.velocity, Vector2.Zero, 0.08f);
-                }
-                if (RushIntentTick >= 500 * Math.Clamp(healthRatioLower, 0.5, 1) && !Hovering)
-                {
-                    ChargingRush = true;
-                    NPC.velocity = Vector2.Zero;
-                    NPC.rotation += MathHelper.WrapAngle(direction.ToRotation() + MathHelper.PiOver2 - NPC.rotation) * 0.15f; // Interpolate
-                    RushIntentTick = 0;
-                }
-
-                if (HoverIntentTick >= 300 * Math.Clamp(healthRatioLower, 0.5, 1) && !ChargingRush)
-                {
-                    Hovering = true;
-                    NPC.rotation += MathHelper.WrapAngle(direction.ToRotation() + MathHelper.PiOver2 - NPC.rotation) * 0.15f; // Interpolate
-                    HoverIntentTick = 0;
-                    HoverPos = new Vector2(0, -300);
-                    HoverX = new Random().Next(-5, 6);
-                    HoverY = new Random().Next(-2, 3);
-                }
-
-                if (playerDistance <= MaxPlayerDistance){
-                RushIntentTick++;
-                HoverIntentTick++;
-                }
-                return;
-            }
-
-            // Attacks
-
-            if (Hovering)
-            {
-                if (HoverTicks >= 200)
-                {
-                    HoverTicks = 0;
-                    Hovering = false;
-                }
-                if (HoverTicks % 30 == 0)
-                {
-                    int R = new Random().Next(0, 2);
-                    SoundEngine.PlaySound(SoundID.Item33, NPC.position);
-                    Vector2 dir = target.Center - NPC.Center;
-                    dir.Normalize();
-                    int Proj = Projectile.NewProjectile(
-                    NPC.GetSource_FromAI(),              // The spawn source context
-                    NPC.Center,                          // Where it spawns (NPC center)
-                    dir * 10,                            // The direction and speed
-                    ModContent.ProjectileType<ChangesiteBeam>(),     // The projectile type
-                    25,                                  // Damage dealt to the player
-                    1f,                                  // Knockback force
-                    Main.myPlayer                        // The owner index
-                    );
-                    if (Main.projectile[Proj].ModProjectile is ChangesiteBeam proj)
+                    if (idleTarget == Vector2.Zero)
                     {
-                        if (R == 1)
-                        {
-                            proj.Homes = true;
-                        }
-                        Main.projectile[Proj].scale += Main.rand.NextFloat(0f, 0.5f);
+                        idleTarget = new Vector2(Main.rand.Next(-250, 250), Main.rand.Next(-250, 250));
                     }
-                }
-                Vector2 hoverTarget = target.Center + HoverPos;
-                Vector2 direction = hoverTarget - NPC.Center;
-                direction.Normalize();
-                NPC.velocity = Vector2.Lerp(NPC.velocity, direction * 10, 0.1f);
-                NPC.rotation += MathHelper.WrapAngle(NPC.velocity.ToRotation() + MathHelper.PiOver2 - NPC.rotation) * 0.15f; // Interpolate
-                HoverTicks++;
-                HoverPos -= new Vector2(HoverX, HoverY);
-            }
-
-            if (ChargingRush && !Rushing)
-            {
-                if (ChargingRushTick >= 15)
-                {
-                    Rushing = true;
-                    ChargingRushTick = 0;
-                    ChargingRush = false;
-                    RushDirection = target.Center;
-                    SoundEngine.PlaySound(SoundID.ForceRoar, NPC.position);
-                }
-                ChargingRushTick++;
-            }
-            if (Rushing)
-            {
-                Vector2 toTarget = RushDirection - NPC.Center;
-                float distance = toTarget.Length();
-                if (RushingTick > 80 * healthRatioHigher)
-                {
-                    Rushing = false;
-                    RushingTick = 0;
-                }
-                Vector2 direction = RushDirection - NPC.Center;
-                direction.Normalize();
-                if (distance >= 10)
-                {
-                    NPC.velocity = Vector2.Lerp(NPC.velocity, direction * 10f * Math.Clamp(healthRatioHigher, 1f, 2f), 0.08f);
-                    NPC.rotation += MathHelper.WrapAngle(direction.ToRotation() + MathHelper.PiOver2 - NPC.rotation) * 0.15f; // Interpolate
+                    Vector2 direction = target.Center + idleTarget - NPC.Center;
+                    direction.Normalize();
+                    NPC.velocity = Vector2.Lerp(NPC.velocity, direction * 5f * Math.Clamp(healthRatio, 1.0f, 1.5f), 0.08f);
                 }
                 else
                 {
-                    Rushing = false;
-                    RushingTick = 0;
+                    // If it's close then slow down
+                    NPC.velocity = Vector2.Lerp(NPC.velocity, Vector2.Zero, 0.08f);
                 }
-                prevPos = NPC.position;
-                RushingTick++;
+
+                NPC.rotation += MathHelper.WrapAngle(NPC.velocity.ToRotation() + MathHelper.PiOver2 - NPC.rotation) * 0.15f;
+
+
+                if (Counter >= 400 / Math.Clamp(healthRatio, 1, 4) + Main.rand.Next(-100, 100))
+                {
+                    Counter = 0;
+                    PickNextAttack();
+                }
+            }
+            else
+            {
+                switch (CurrentState)
+                {
+                    case AttackState.Rush:
+                        {
+                            if (Counter < 15)
+                            {
+                                // Slow down
+                                NPC.velocity = Vector2.Lerp(NPC.velocity, Vector2.Zero, 0.08f);
+                            }
+
+                            if (Counter >= 15)
+                            {
+                                NPC.damage = 120;
+                                if (RushPosition == Vector2.Zero)
+                                {
+                                    SoundEngine.PlaySound(SoundID.ForceRoar, NPC.position);
+
+                                    RushPosition = target.Center;
+                                    Vector2 Direction = RushPosition - NPC.Center;
+                                    Direction.Normalize();
+                                    RushPosition += Direction * 1000f;
+                                }
+
+                                Vector2 toTarget = RushPosition - NPC.Center;
+                                float distance = toTarget.Length();
+                                if (Counter > 100 * Math.Clamp(healthRatio, 1, 2))
+                                {
+                                    RushPosition = Vector2.Zero;
+                                    CurrentState = AttackState.None;
+                                    Counter = 0;
+                                    NPC.damage = 80;
+                                    break;
+                                }
+
+                                toTarget.Normalize();
+
+                                if (distance >= 20 * Math.Clamp(healthRatio, 1f, 2f))
+                                {
+                                    NPC.velocity = Vector2.Lerp(NPC.velocity, toTarget * 15f * Math.Clamp(healthRatio, 1f, 2f), 0.08f);
+                                    NPC.rotation += MathHelper.WrapAngle(NPC.velocity.ToRotation() + MathHelper.PiOver2 - NPC.rotation) * 0.15f;
+                                }
+                                else
+                                {
+                                    RushPosition = Vector2.Zero;
+                                    CurrentState = AttackState.None;
+                                    Counter = 0;
+                                    NPC.damage = 80;
+                                }
+                            }
+                            break;
+                        }
+                    case AttackState.Hover:
+                        {
+                            if (HoverPosition == Vector2.Zero)
+                            {
+                                HoverPosition = new Vector2(0, -300);
+                                HoverPosition.Normalize();
+                                HoverX = Main.rand.Next(-6, 7);
+                                HoverY = Main.rand.Next(-2, 3);
+                            }
+
+                            if (Counter >= 300 + Main.rand.Next(-100, 100))
+                            {
+                                CurrentState = AttackState.None;
+                                HoverPosition = Vector2.Zero;
+                                Counter = 0;
+                                break;
+                            }
+
+                            if (Counter % (30 / Math.Clamp(healthRatio, 1f, 2f)) == 0)
+                            {
+                                bool Homing = Main.rand.NextBool();
+
+                                SoundEngine.PlaySound(SoundID.Item33, NPC.position);
+                                Vector2 dir = target.Center - NPC.Center;
+                                dir.Normalize();
+                                int Proj = Projectile.NewProjectile(
+                                NPC.GetSource_FromAI(),              // The spawn source context
+                                NPC.Center,                          // Where it spawns (NPC center)
+                                dir * 10,                            // The direction and speed
+                                ModContent.ProjectileType<ChangesiteBeam>(),     // The projectile type
+                                25,                                  // Damage dealt to the player
+                                1f,                                  // Knockback force
+                                Main.myPlayer                        // The owner index
+                                );
+
+                                if (Main.projectile[Proj].ModProjectile is ChangesiteBeam proj)
+                                {
+                                    if (Homing)
+                                    {
+                                        proj.Homes = true;
+                                    }
+                                    Main.projectile[Proj].scale += Main.rand.NextFloat(0f, 0.5f);
+                                }
+                            }
+
+                            Vector2 hoverTarget = target.Center + HoverPosition;
+                            Vector2 direction = hoverTarget - NPC.Center;
+                            float distance = direction.Length();
+                            if (distance > 0f)
+                                direction /= distance;
+                            float speed = MathHelper.Clamp(distance / 40f, 1f, 10f);
+                            direction.Normalize();
+                            NPC.velocity = Vector2.Lerp(NPC.velocity, direction * speed, 0.1f);
+                            NPC.rotation += MathHelper.WrapAngle(NPC.velocity.ToRotation() + MathHelper.PiOver2 - NPC.rotation) * 0.15f;
+                            HoverPosition -= new Vector2(HoverX, HoverY);
+                            break;
+                        }
+                }
             }
 
+            Counter++;
         }
     }
 }

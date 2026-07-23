@@ -1,3 +1,4 @@
+using Microsoft.Xna.Framework;
 using SingularityMod.Content.Items.CraftingStations;
 using SingularityMod.Content.Items.Ores;
 using Terraria;
@@ -37,12 +38,18 @@ namespace SingularityMod.Content.Items.Summoners
 
         public override bool? UseItem(Player player)
         {
-            if (Main.netMode != NetmodeID.MultiplayerClient)
+            if (Main.netMode != NetmodeID.MultiplayerClient && player.ZoneOverworldHeight)
             {
-                NPC.SpawnOnPlayer(
-                    player.whoAmI,
+                Vector2 spawnPos = player.Center + new Vector2(Main.rand.Next(-1000, 1000), -1600f);
+
+                int npc = NPC.NewNPC(
+                    player.GetSource_ItemUse(Item),
+                    (int)spawnPos.X,
+                    (int)spawnPos.Y,
                     ModContent.NPCType<Content.NPCs.Bosses.Cygnus.CygnusHead>()
                 );
+
+                Main.npc[npc].TargetClosest();
             }
 
             return true;

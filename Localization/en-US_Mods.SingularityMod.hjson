@@ -25,13 +25,22 @@ Items: {
 	}
 
 	CygnusBag: {
-		DisplayName: Cygnus Bag
-		Tooltip: ""
+		DisplayName: Treasure Bag (Cygnus)
+		Tooltip:
+			'''
+			Right Click to open
+			Expert
+			'''
 	}
 
 	CygnusRelic: {
 		DisplayName: Cygnus Relic
-		Tooltip: ""
+		Tooltip: Master
+	}
+
+	Deneb: {
+		DisplayName: Deneb
+		Tooltip: Made from a supergiant star in the constellation Cygnus
 	}
 }
 
@@ -42,7 +51,6 @@ NPCs: {
 }
 
 Projectiles: {
-	MagnetronBeam.DisplayName: Magnetron Beam
 	ChangesiteBeam.DisplayName: Changesite Beam
-	ChangesiteHoming.DisplayName: Changesite Homing
+	DenebProjectile.DisplayName: Deneb
 }

@@ -19,7 +19,7 @@ namespace SingularityMod.Content.Items.CraftingStations
             Item.height = 12;
             Item.maxStack = 9999;
             Item.value = Item.sellPrice(silver: 15);
-            Item.rare = ItemRarityID.Blue;
+            Item.rare = ItemRarityID.Green;
         }
 
         public override void AddRecipes()

@@ -15,6 +15,14 @@ namespace SingularityMod.Content.NPCs.Bosses.Cygnus
     {
         public override string Texture => "SingularityMod/Content/Assets/NPCs/Cygnus/CygnusTail";
 
+        public override void SetStaticDefaults()
+        {
+            NPCID.Sets.NPCBestiaryDrawOffset.Add(Type, new NPCID.Sets.NPCBestiaryDrawModifiers()
+            {
+                Hide = true
+            });
+        }
+
         public override void SetDefaults()
         {
             NPC.width = 36;
@@ -108,14 +116,24 @@ namespace SingularityMod.Content.NPCs.Bosses.Cygnus
                 NPC.active = false;
                 return;
             }
-            head.life -= (int)(hit.Damage / 2);
+            NPC.HitInfo replicate = hit;
+            replicate.Damage /= 3;
+            head.StrikeNPC(replicate);
             if (head.life <= 0)
             {
+
                 NPC.timeLeft = 0;
                 NPC.active = false;
             }
 
             NPC.life = head.life;
+            NPC.lifeMax = head.lifeMax;
+            if (NPC.life != head.life || NPC.lifeMax != head.lifeMax)
+            {
+                NPC.life = head.life;
+                NPC.lifeMax = head.lifeMax;
+                NPC.netUpdate = true;
+            }
         }
 
         public override void AI()
@@ -123,9 +141,10 @@ namespace SingularityMod.Content.NPCs.Bosses.Cygnus
             if (NPC.life <= 0)
             {
                 NPC.timeLeft = 0;
-                NPC.StrikeInstantKill();
+                NPC.active = false;
                 return;
             }
+
             int previous = (int)NPC.ai[1];
             NPC previousNPC = Main.npc[previous];
             NPC headNPC = Main.npc[(int)NPC.ai[2]];
@@ -167,7 +186,9 @@ namespace SingularityMod.Content.NPCs.Bosses.Cygnus
 
                 NPC.rotation = direction.ToRotation() + MathHelper.PiOver2;
                 NPC.life = headNPC.life;
+                NPC.lifeMax = headNPC.lifeMax;
             }
         }
+
     }
 }

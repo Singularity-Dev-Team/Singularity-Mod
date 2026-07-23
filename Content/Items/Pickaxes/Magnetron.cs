@@ -30,7 +30,7 @@ namespace SingularityMod.Content.Items.Pickaxes
 
             Item.width = 32;
             Item.height = 32;
-            Item.rare = ItemRarityID.Blue;
+            Item.rare = ItemRarityID.Green;
         }
 
         public override void HoldItem(Player player)
