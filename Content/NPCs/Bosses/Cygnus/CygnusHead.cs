@@ -455,7 +455,6 @@ namespace SingularityMod.Content.NPCs.Bosses.Cygnus
             }
 
             Counter++;
-            NPC.rotation = NPC.velocity.ToRotation() + MathHelper.PiOver2;
         }
     }
 }
