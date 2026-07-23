@@ -46,7 +46,10 @@ Items: {
 
 NPCs: {
 	CygnusBody.DisplayName: Cygnus
-	CygnusHead.DisplayName: Cygnus
+	CygnusHead: {
+		DisplayName: Cygnus
+		Bestiary: A mysterious celestial serpent from a distant constellation.
+	}	
 	CygnusTail.DisplayName: Cygnus
 }
 
