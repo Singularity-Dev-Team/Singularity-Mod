@@ -347,7 +347,7 @@ namespace SingularityMod.Content.NPCs.Bosses.Cygnus
                                 spiralAngle = 0f;
                             }
 
-                            float radius = 400f;
+                            float radius = 350f;
                             radius *= 0.5f;
 
                             float angularSpeed = 0.04f * (1f + 0.5f * (1f - Math.Clamp(healthRatio, 1, 5)));
