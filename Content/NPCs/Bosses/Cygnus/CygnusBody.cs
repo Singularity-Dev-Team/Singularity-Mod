@@ -3,6 +3,7 @@ using System.IO;
 using Microsoft.Xna.Framework;
 using Microsoft.Xna.Framework.Graphics;
 using SingularityMod.Content.Projectiles;
+using SingularityMod.Singularity;
 using Terraria;
 using Terraria.Audio;
 using Terraria.DataStructures;
@@ -15,6 +16,11 @@ namespace SingularityMod.Content.NPCs.Bosses.Cygnus
 
     public class CygnusBody : CygnusSegment
     {
+        public override bool? DrawHealthBar(byte hbPosition, ref float scale, ref Vector2 position)
+        {
+            return false;
+        }
+
         public override string Texture => "SingularityMod/Content/Assets/NPCs/Cygnus/CygnusBody";
         private int Counter = 0;
 
@@ -24,6 +30,7 @@ namespace SingularityMod.Content.NPCs.Bosses.Cygnus
             {
                 Hide = true
             });
+            NPCID.Sets.CantTakeLunchMoney[Type] = true;
         }
         public override void SetDefaults()
         {
@@ -32,9 +39,10 @@ namespace SingularityMod.Content.NPCs.Bosses.Cygnus
 
             NPC.damage = 40;
             NPC.defense = 30;
+            NPC.Mod().DamageResist = 0.75f;
             NPC.lifeMax = 5000;
 
-            NPC.aiStyle = 6;
+            NPC.aiStyle = -1;
 
             Main.npcFrameCount[Type] = 3;
 
@@ -100,15 +108,6 @@ namespace SingularityMod.Content.NPCs.Bosses.Cygnus
             return false;
         }
 
-        public override bool? CanBeHitByProjectile(Projectile projectile)
-        {
-            if (projectile.type == ModContent.ProjectileType<ChangesiteBeam>())
-            {
-                return false;
-            }
-            return true;
-        }
-
         private void InstakillNPC(NPC npc)
         {
             NPC.HitInfo hit = new NPC.HitInfo();
@@ -120,7 +119,7 @@ namespace SingularityMod.Content.NPCs.Bosses.Cygnus
 
         public override void HitEffect(NPC.HitInfo hit)
         {
-            NPC head = Main.npc[(int)NPC.ai[2]];
+            /*NPC head = Main.npc[(int)NPC.ai[2]];
 
             if (!head.active)
             {
@@ -154,7 +153,7 @@ namespace SingularityMod.Content.NPCs.Bosses.Cygnus
                 NPC.life = head.life;
                 NPC.lifeMax = head.lifeMax;
                 NPC.netUpdate = true;
-            }
+            }*/
         }
 
         public override void SendExtraAI(BinaryWriter writer)
@@ -169,12 +168,19 @@ namespace SingularityMod.Content.NPCs.Bosses.Cygnus
 
         public override void AI()
         {
-            if (NPC.life <= 0)
+            NPC headNPC = Main.npc[(int)NPC.ai[2]];
+            NPC.life = headNPC.life;
+            /*if (NPC.life <= 0)
             {
                 NPC.timeLeft = 0;
                 NPC.active = false;
                 return;
-            }
+            }*/
+            Wormaround();
+            Lasers();
+        }
+        public void Wormaround()
+        {
 
             int previous = (int)NPC.ai[1];
             NPC previousNPC = Main.npc[previous];
@@ -204,43 +210,61 @@ namespace SingularityMod.Content.NPCs.Bosses.Cygnus
                     NPC.active = false;
                     return;
                 }
-
-                Vector2 direction = previousNPC.Center - NPC.Center;
-
-                float distance = direction.Length();
-
-                if (distance > 40)
-                {
-                    direction.Normalize();
-                    NPC.Center = previousNPC.Center - direction * 40f;
-                }
-
-                NPC.rotation = direction.ToRotation() + MathHelper.PiOver2;
-                NPC.life = headNPC.life;
-                NPC.lifeMax = headNPC.lifeMax;
             }
+
+            // smooth movement (extra sick and cool)
+
+            Vector2 directionToNextSegment = previousNPC.Center - NPC.Center;
+            if (previousNPC.rotation != NPC.rotation)
+            {
+                directionToNextSegment = directionToNextSegment.RotatedBy(MathHelper.WrapAngle(previousNPC.rotation - NPC.rotation) * 0.04f);
+                directionToNextSegment = directionToNextSegment.MoveTowards((previousNPC.rotation - NPC.rotation).ToRotationVector2(), 1f);
+            }
+
+            NPC.rotation = directionToNextSegment.ToRotation() + MathHelper.PiOver2;
+            NPC.Center = previousNPC.Center - directionToNextSegment.SafeNormalize(Vector2.Zero) * NPC.scale * NPC.width;
+            NPC.spriteDirection = (directionToNextSegment.X > 0).ToDirectionInt();
+
+            /*Vector2 direction = previousNPC.Center - NPC.Center;
+
+            float distance = direction.Length();
+
+            if (distance > 40)
+            {
+                direction.Normalize();
+                NPC.Center = previousNPC.Center - direction * 40f;
+            }
+
+            NPC.rotation = direction.ToRotation() + MathHelper.PiOver2;
+            NPC.life = headNPC.life;
+            NPC.lifeMax = headNPC.lifeMax;*/
+        }
+
+        // out of the way
+        public void Lasers()
+        {
+            NPC headNPC = Main.npc[(int)NPC.ai[2]];
+            CygnusHead headMod = headNPC.ModNPC as CygnusHead;
 
             if (headMod.shootingLasers)
             {
-                if (Counter % 60 + Main.rand.Next(-10, 11) == 0)
+                if (Counter % 60 + Main.rand.Next(-5, 6) == 0 && Main.rand.Next(0, 5) == 1)
                 {
                     SoundEngine.PlaySound(SoundID.Item33, NPC.position);
                     Vector2 dir = Main.player[headMod.targetIndex].Center - NPC.Center;
                     dir.Normalize();
+
                     int Proj = Projectile.NewProjectile(
-                    NPC.GetSource_FromAI(),              // The spawn source context
-                    NPC.Center,                          // Where it spawns (NPC center)
-                    dir * 10,                            // The direction and speed
-                    ModContent.ProjectileType<ChangesiteBeam>(),     // The projectile type
-                    25,                                  // Damage dealt to the player
-                    1f,                                  // Knockback force
-                    Main.myPlayer                        // The owner index
+                        NPC.GetSource_FromAI(),              // The spawn source context
+                        NPC.Center,                          // Where it spawns (NPC center)
+                        dir * 10,                            // The direction and speed
+                        ModContent.ProjectileType<ChangesiteBeam>(),     // The projectile type
+                        25,                                  // Damage dealt to the player
+                        1f,                                  // Knockback force
+                        Main.myPlayer                        // The owner index
                     );
 
-                    if (Main.projectile[Proj].ModProjectile is ChangesiteBeam proj)
-                    {
-                        Main.projectile[Proj].scale += Main.rand.NextFloat(0f, 0.5f);
-                    }
+                    Main.projectile[Proj].scale += Main.rand.NextFloat(0f, 0.25f);
                     Counter = 0;
                 }
                 Counter++;
@@ -250,6 +274,5 @@ namespace SingularityMod.Content.NPCs.Bosses.Cygnus
                 Counter = 0;
             }
         }
-
     }
 }

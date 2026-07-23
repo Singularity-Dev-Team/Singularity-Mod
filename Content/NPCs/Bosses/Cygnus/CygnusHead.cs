@@ -53,7 +53,7 @@ namespace SingularityMod.Content.NPCs.Bosses.Cygnus
             bestiaryEntry.Info.AddRange(new IBestiaryInfoElement[]
             {
                 BestiaryDatabaseNPCsPopulator.CommonTags.SpawnConditions.Biomes.Surface,
-                new FlavorTextBestiaryInfoElement("A mysterious celestial serpent from a distant constellation.")
+                new FlavorTextBestiaryInfoElement(this.GetLocalization("Bestiary").Value),
             });
         }
 
@@ -235,6 +235,7 @@ namespace SingularityMod.Content.NPCs.Bosses.Cygnus
                 }
 
                 Main.npc[segment].ai[2] = NPC.whoAmI;
+                Main.npc[segment].realLife = NPC.whoAmI;
                 Main.npc[segment].ai[1] = previous;
                 Main.npc[previous].ai[0] = segment;
 
@@ -346,7 +347,7 @@ namespace SingularityMod.Content.NPCs.Bosses.Cygnus
                                 spiralAngle = 0f;
                             }
 
-                            float radius = 300f;
+                            float radius = 350f;
                             radius *= 0.5f;
 
                             float angularSpeed = 0.04f * (1f + 0.5f * (1f - Math.Clamp(healthRatio, 1, 5)));

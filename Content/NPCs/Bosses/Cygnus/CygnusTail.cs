@@ -1,6 +1,7 @@
 using Microsoft.Xna.Framework;
 using Microsoft.Xna.Framework.Graphics;
 using SingularityMod.Content.Projectiles;
+using SingularityMod.Singularity;
 using Terraria;
 using Terraria.DataStructures;
 using Terraria.ID;
@@ -13,6 +14,10 @@ namespace SingularityMod.Content.NPCs.Bosses.Cygnus
 
     public class CygnusTail : CygnusSegment
     {
+        public override bool? DrawHealthBar(byte hbPosition, ref float scale, ref Vector2 position)
+        {
+            return false;
+        }
         public override string Texture => "SingularityMod/Content/Assets/NPCs/Cygnus/CygnusTail";
 
         public override void SetStaticDefaults()
@@ -21,6 +26,7 @@ namespace SingularityMod.Content.NPCs.Bosses.Cygnus
             {
                 Hide = true
             });
+            NPCID.Sets.CantTakeLunchMoney[Type] = true;
         }
 
         public override void SetDefaults()
@@ -30,9 +36,10 @@ namespace SingularityMod.Content.NPCs.Bosses.Cygnus
 
             NPC.damage = 60;
             NPC.defense = 40;
+            NPC.Mod().DamageResist = 0.75f;
             NPC.lifeMax = 5000;
 
-            NPC.aiStyle = 6;
+            NPC.aiStyle = -1;
 
             NPC.noGravity = true;
             NPC.noTileCollide = true;
@@ -99,7 +106,7 @@ namespace SingularityMod.Content.NPCs.Bosses.Cygnus
 
         public override void HitEffect(NPC.HitInfo hit)
         {
-            NPC head = Main.npc[(int)NPC.ai[2]];
+            /*NPC head = Main.npc[(int)NPC.ai[2]];
 
             if (!head.active)
             {
@@ -133,7 +140,7 @@ namespace SingularityMod.Content.NPCs.Bosses.Cygnus
                 NPC.life = head.life;
                 NPC.lifeMax = head.lifeMax;
                 NPC.netUpdate = true;
-            }
+            }*/
         }
 
         public override void AI()
@@ -174,19 +181,18 @@ namespace SingularityMod.Content.NPCs.Bosses.Cygnus
                     return;
                 }
 
-                Vector2 direction = previousNPC.Center - NPC.Center;
+                // smooth movement (extra sick and cool)
 
-                float distance = direction.Length();
-
-                if (distance > 40)
+                Vector2 directionToNextSegment = previousNPC.Center - NPC.Center;
+                if (previousNPC.rotation != NPC.rotation)
                 {
-                    direction.Normalize();
-                    NPC.Center = previousNPC.Center - direction * 40f;
+                    directionToNextSegment = directionToNextSegment.RotatedBy(MathHelper.WrapAngle(previousNPC.rotation - NPC.rotation) * 0.04f);
+                    directionToNextSegment = directionToNextSegment.MoveTowards((previousNPC.rotation - NPC.rotation).ToRotationVector2(), 1f);
                 }
 
-                NPC.rotation = direction.ToRotation() + MathHelper.PiOver2;
-                NPC.life = headNPC.life;
-                NPC.lifeMax = headNPC.lifeMax;
+                NPC.rotation = directionToNextSegment.ToRotation() + MathHelper.PiOver2;
+                NPC.Center = previousNPC.Center - directionToNextSegment.SafeNormalize(Vector2.Zero) * NPC.scale * NPC.width;
+                NPC.spriteDirection = (directionToNextSegment.X > 0).ToDirectionInt();
             }
         }
 
