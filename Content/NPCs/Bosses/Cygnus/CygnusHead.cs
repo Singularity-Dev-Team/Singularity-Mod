@@ -29,21 +29,24 @@ namespace SingularityMod.Content.NPCs.Bosses.Cygnus
         private static int MaxPlayerDistance = 1500;
         public int CygnusID = 0; // This prevents messing up cygnus with two of them
         private static int NextCygnusID = 0; // So they all share this but not CygnusID
-        Vector2 idleTarget;
-
         enum AttackState
         {
-            Rush,
             Hover,
+            Spiral,
             None
         }
         AttackState CurrentState = AttackState.None;
         int Counter = 0;
         int HoverX = 0;
         int HoverY = 0;
+        float spiralAngle = 0f;
+
+        public bool shootingLasers = false;
 
         Vector2 RushPosition;
         Vector2 HoverPosition;
+        Vector2 idleTarget;
+        public int targetIndex;
 
         public override void SetBestiary(BestiaryDatabase database, BestiaryEntry bestiaryEntry)
         {
@@ -82,6 +85,9 @@ namespace SingularityMod.Content.NPCs.Bosses.Cygnus
 
         public override void SendExtraAI(BinaryWriter writer)
         {
+            writer.Write(targetIndex);
+            writer.Write(spiralAngle);
+
             writer.Write((byte)CurrentState);
             writer.Write(Counter);
 
@@ -96,10 +102,16 @@ namespace SingularityMod.Content.NPCs.Bosses.Cygnus
 
             writer.Write(idleTarget.X);
             writer.Write(idleTarget.Y);
+
+            writer.Write(shootingLasers);
+
         }
 
         public override void ReceiveExtraAI(BinaryReader reader)
         {
+            targetIndex = reader.ReadInt32();
+            spiralAngle = reader.ReadInt32();
+
             CurrentState = (AttackState)reader.ReadByte();
             Counter = reader.ReadInt32();
 
@@ -120,6 +132,8 @@ namespace SingularityMod.Content.NPCs.Bosses.Cygnus
                 reader.ReadSingle(),
                 reader.ReadSingle()
             );
+
+            shootingLasers = reader.ReadBoolean();
         }
 
         public override void ModifyNPCLoot(NPCLoot npcLoot)
@@ -233,10 +247,10 @@ namespace SingularityMod.Content.NPCs.Bosses.Cygnus
             idleTarget = Vector2.Zero;
             int r = Main.rand.Next(100);
 
-            if (r < 60)
-                CurrentState = AttackState.Rush;
-            else
+            if (r < 50)
                 CurrentState = AttackState.Hover;
+            else
+                CurrentState = AttackState.Spiral;
         }
 
         public override void AI()
@@ -244,6 +258,7 @@ namespace SingularityMod.Content.NPCs.Bosses.Cygnus
             // 60 ticks = 1 sec
 
             Player target = Main.player[NPC.target];
+            targetIndex = NPC.target;
             float targetDistance = (target.Center - NPC.Center).Length();
 
             float healthRatio = (float)NPC.lifeMax / NPC.life;
@@ -276,26 +291,45 @@ namespace SingularityMod.Content.NPCs.Bosses.Cygnus
 
             if (CurrentState == AttackState.None)
             {
-                if (targetDistance > 40f)
+                Vector2 targetPos = target.Center;
+
+                if (Counter % 60 == 0)
                 {
-                    if (idleTarget == Vector2.Zero)
-                    {
-                        idleTarget = new Vector2(Main.rand.Next(-250, 250), Main.rand.Next(-250, 250));
-                    }
-                    Vector2 direction = target.Center + idleTarget - NPC.Center;
-                    direction.Normalize();
-                    NPC.velocity = Vector2.Lerp(NPC.velocity, direction * 5f * Math.Clamp(healthRatio, 1.0f, 1.5f), 0.08f);
+                    idleTarget = new Vector2(Main.rand.Next(-250, 250), Main.rand.Next(-250, 250));
+                }
+                targetPos += idleTarget;
+
+                Vector2 toTarget = targetPos - NPC.Center;
+                float distance = toTarget.Length();
+
+                if (distance > 40f)
+                {
+                    Vector2 direction = toTarget.SafeNormalize(Vector2.UnitY);
+
+                    float maxSpeed = 5f * Math.Clamp(healthRatio, 1.0f, 1.5f);
+                    float acceleration = 0.08f;
+
+                    Vector2 desiredVelocity = direction * maxSpeed;
+
+                    NPC.velocity = Vector2.Lerp(NPC.velocity, desiredVelocity, acceleration);
+
+                    if (NPC.velocity.Length() > maxSpeed * 1.3f)
+                        NPC.velocity = NPC.velocity.SafeNormalize(Vector2.UnitY) * maxSpeed * 1.3f;
+                    else if (NPC.velocity.Length() < maxSpeed * 0.7f && NPC.velocity.Length() > 0.1f)
+                        NPC.velocity = NPC.velocity.SafeNormalize(Vector2.UnitY) * maxSpeed * 0.7f;
                 }
                 else
                 {
-                    // If it's close then slow down
+                    // Slow down when close
                     NPC.velocity = Vector2.Lerp(NPC.velocity, Vector2.Zero, 0.08f);
                 }
 
-                NPC.rotation += MathHelper.WrapAngle(NPC.velocity.ToRotation() + MathHelper.PiOver2 - NPC.rotation) * 0.15f;
+                if (NPC.velocity.Length() > 0.1f)
+                {
+                    NPC.rotation = NPC.velocity.ToRotation() + MathHelper.PiOver2;
+                }
 
-
-                if (Counter >= 400 / Math.Clamp(healthRatio, 1, 4) + Main.rand.Next(-100, 100))
+                if (Counter >= 400 / Math.Clamp(healthRatio, 1, 1.5) + Main.rand.Next(-100, 100))
                 {
                     Counter = 0;
                     PickNextAttack();
@@ -305,52 +339,38 @@ namespace SingularityMod.Content.NPCs.Bosses.Cygnus
             {
                 switch (CurrentState)
                 {
-                    case AttackState.Rush:
+                    case AttackState.Spiral:
                         {
-                            if (Counter < 15)
+                            if (Counter == 1)
                             {
-                                // Slow down
-                                NPC.velocity = Vector2.Lerp(NPC.velocity, Vector2.Zero, 0.08f);
+                                spiralAngle = 0f;
                             }
 
-                            if (Counter >= 15)
+                            float radius = 300f;
+                            radius *= 0.5f;
+
+                            float angularSpeed = 0.04f * (1f + 0.5f * (1f - Math.Clamp(healthRatio, 1, 5)));
+                            spiralAngle += angularSpeed;
+
+                            Vector2 offset = new Vector2((float)Math.Cos(spiralAngle), (float)Math.Sin(spiralAngle)) * radius;
+                            Vector2 targetPos = target.Center + offset;
+
+                            Vector2 toTarget = targetPos - NPC.Center;
+                            float dist = toTarget.Length();
+                            if (dist > 0f)
                             {
-                                NPC.damage = 120;
-                                if (RushPosition == Vector2.Zero)
-                                {
-                                    SoundEngine.PlaySound(SoundID.ForceRoar, NPC.position);
-
-                                    RushPosition = target.Center;
-                                    Vector2 Direction = RushPosition - NPC.Center;
-                                    Direction.Normalize();
-                                    RushPosition += Direction * 1000f;
-                                }
-
-                                Vector2 toTarget = RushPosition - NPC.Center;
-                                float distance = toTarget.Length();
-                                if (Counter > 100 * Math.Clamp(healthRatio, 1, 2))
-                                {
-                                    RushPosition = Vector2.Zero;
-                                    CurrentState = AttackState.None;
-                                    Counter = 0;
-                                    NPC.damage = 80;
-                                    break;
-                                }
-
                                 toTarget.Normalize();
+                                float speed = Math.Min(dist * 0.1f, 20f * Math.Clamp(healthRatio, 1f, 2f));
+                                NPC.velocity = Vector2.Lerp(NPC.velocity, toTarget * speed, 0.15f);
+                            }
 
-                                if (distance >= 20 * Math.Clamp(healthRatio, 1f, 2f))
-                                {
-                                    NPC.velocity = Vector2.Lerp(NPC.velocity, toTarget * 15f * Math.Clamp(healthRatio, 1f, 2f), 0.08f);
-                                    NPC.rotation += MathHelper.WrapAngle(NPC.velocity.ToRotation() + MathHelper.PiOver2 - NPC.rotation) * 0.15f;
-                                }
-                                else
-                                {
-                                    RushPosition = Vector2.Zero;
-                                    CurrentState = AttackState.None;
-                                    Counter = 0;
-                                    NPC.damage = 80;
-                                }
+                            if (NPC.velocity.Length() > 0.1f)
+                                NPC.rotation = NPC.velocity.ToRotation() + MathHelper.PiOver2;
+
+                            if (Counter >= 600)
+                            {
+                                CurrentState = AttackState.None;
+                                Counter = 0;
                             }
                             break;
                         }
@@ -358,10 +378,9 @@ namespace SingularityMod.Content.NPCs.Bosses.Cygnus
                         {
                             if (HoverPosition == Vector2.Zero)
                             {
-                                HoverPosition = new Vector2(0, -300);
+                                HoverPosition = new Vector2(0, -100);
                                 HoverPosition.Normalize();
                                 HoverX = Main.rand.Next(-6, 7);
-                                HoverY = Main.rand.Next(-2, 3);
                             }
 
                             if (Counter >= 300 + Main.rand.Next(-100, 100))
@@ -369,11 +388,14 @@ namespace SingularityMod.Content.NPCs.Bosses.Cygnus
                                 CurrentState = AttackState.None;
                                 HoverPosition = Vector2.Zero;
                                 Counter = 0;
+                                shootingLasers = false;
+
                                 break;
                             }
 
-                            if (Counter % (30 / Math.Clamp(healthRatio, 1f, 2f)) == 0)
+                            if (Counter % 30 / (int)Math.Floor(Math.Clamp(healthRatio, 1f, 2f)) == 0)
                             {
+                                shootingLasers = true;
                                 bool Homing = Main.rand.NextBool();
 
                                 SoundEngine.PlaySound(SoundID.Item33, NPC.position);
@@ -400,14 +422,31 @@ namespace SingularityMod.Content.NPCs.Bosses.Cygnus
                             }
 
                             Vector2 hoverTarget = target.Center + HoverPosition;
-                            Vector2 direction = hoverTarget - NPC.Center;
-                            float distance = direction.Length();
-                            if (distance > 0f)
-                                direction /= distance;
-                            float speed = MathHelper.Clamp(distance / 40f, 1f, 10f);
-                            direction.Normalize();
-                            NPC.velocity = Vector2.Lerp(NPC.velocity, direction * speed, 0.1f);
-                            NPC.rotation += MathHelper.WrapAngle(NPC.velocity.ToRotation() + MathHelper.PiOver2 - NPC.rotation) * 0.15f;
+                            Vector2 toTarget = hoverTarget - NPC.Center;
+                            float distance = toTarget.Length();
+                            if (distance > 20f)
+                            {
+                                Vector2 direction = toTarget / distance;
+                                float maxSpeed = MathHelper.Clamp(distance / 20f, 5f, 15f) * Math.Clamp(healthRatio, 1f, 2f);
+                                Vector2 desiredVelocity = direction * maxSpeed;
+                                NPC.velocity = Vector2.Lerp(NPC.velocity, desiredVelocity, 0.08f + 0.02f * (1f - Math.Clamp(healthRatio, 1, 5)));
+                                float currentSpeed = NPC.velocity.Length();
+                                if (currentSpeed > 0f)
+                                {
+                                    float higherSpeed = maxSpeed * 1.3f;
+                                    float lowerSpeed = maxSpeed * 0.7f;
+                                    if (currentSpeed > higherSpeed)
+                                        NPC.velocity = NPC.velocity / currentSpeed * higherSpeed;
+                                    else if (currentSpeed < lowerSpeed && currentSpeed > 0.1f)
+                                        NPC.velocity = NPC.velocity / currentSpeed * lowerSpeed;
+                                }
+                            }
+                            else
+                            {
+                                NPC.velocity = Vector2.Lerp(NPC.velocity, Vector2.Zero, 0.08f);
+                            }
+                            if (NPC.velocity.Length() > 0.1f)
+                                NPC.rotation = MathHelper.Lerp(NPC.rotation, NPC.velocity.ToRotation() + MathHelper.PiOver2, 0.15f);
                             HoverPosition -= new Vector2(HoverX, HoverY);
                             break;
                         }

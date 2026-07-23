@@ -13,7 +13,7 @@ using System.Reflection;
 [assembly: System.Reflection.AssemblyCompanyAttribute("SingularityMod")]
 [assembly: System.Reflection.AssemblyConfigurationAttribute("Debug")]
 [assembly: System.Reflection.AssemblyFileVersionAttribute("1.0.0.0")]
-[assembly: System.Reflection.AssemblyInformationalVersionAttribute("1.0.0+ddfb6233f8a41cd2e922162f950f2f7ae33286f8")]
+[assembly: System.Reflection.AssemblyInformationalVersionAttribute("1.0.0+73253610378ae0da36e472d893b943a81b6f7db5")]
 [assembly: System.Reflection.AssemblyProductAttribute("SingularityMod")]
 [assembly: System.Reflection.AssemblyTitleAttribute("SingularityMod")]
 [assembly: System.Reflection.AssemblyVersionAttribute("1.0.0.0")]

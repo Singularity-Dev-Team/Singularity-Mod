@@ -1,8 +1,10 @@
 using System;
+using System.IO;
 using Microsoft.Xna.Framework;
 using Microsoft.Xna.Framework.Graphics;
 using SingularityMod.Content.Projectiles;
 using Terraria;
+using Terraria.Audio;
 using Terraria.DataStructures;
 using Terraria.ID;
 using Terraria.ModLoader;
@@ -14,7 +16,7 @@ namespace SingularityMod.Content.NPCs.Bosses.Cygnus
     public class CygnusBody : CygnusSegment
     {
         public override string Texture => "SingularityMod/Content/Assets/NPCs/Cygnus/CygnusBody";
-
+        private int Counter = 0;
 
         public override void SetStaticDefaults()
         {
@@ -148,11 +150,21 @@ namespace SingularityMod.Content.NPCs.Bosses.Cygnus
             NPC.life = head.life;
             NPC.lifeMax = head.lifeMax;
             if (NPC.life != head.life || NPC.lifeMax != head.lifeMax)
-            { 
+            {
                 NPC.life = head.life;
                 NPC.lifeMax = head.lifeMax;
                 NPC.netUpdate = true;
             }
+        }
+
+        public override void SendExtraAI(BinaryWriter writer)
+        {
+            writer.Write(Counter);
+        }
+
+        public override void ReceiveExtraAI(BinaryReader reader)
+        {
+            Counter = reader.ReadInt32();
         }
 
         public override void AI()
@@ -206,6 +218,36 @@ namespace SingularityMod.Content.NPCs.Bosses.Cygnus
                 NPC.rotation = direction.ToRotation() + MathHelper.PiOver2;
                 NPC.life = headNPC.life;
                 NPC.lifeMax = headNPC.lifeMax;
+            }
+
+            if (headMod.shootingLasers)
+            {
+                if (Counter % 60 + Main.rand.Next(-10, 11) == 0)
+                {
+                    SoundEngine.PlaySound(SoundID.Item33, NPC.position);
+                    Vector2 dir = Main.player[headMod.targetIndex].Center - NPC.Center;
+                    dir.Normalize();
+                    int Proj = Projectile.NewProjectile(
+                    NPC.GetSource_FromAI(),              // The spawn source context
+                    NPC.Center,                          // Where it spawns (NPC center)
+                    dir * 10,                            // The direction and speed
+                    ModContent.ProjectileType<ChangesiteBeam>(),     // The projectile type
+                    25,                                  // Damage dealt to the player
+                    1f,                                  // Knockback force
+                    Main.myPlayer                        // The owner index
+                    );
+
+                    if (Main.projectile[Proj].ModProjectile is ChangesiteBeam proj)
+                    {
+                        Main.projectile[Proj].scale += Main.rand.NextFloat(0f, 0.5f);
+                    }
+                    Counter = 0;
+                }
+                Counter++;
+            }
+            else
+            {
+                Counter = 0;
             }
         }
 
